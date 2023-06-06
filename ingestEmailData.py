@@ -8,9 +8,15 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from datetime import date
+from datetime import datetime
+from bs4 import BeautifulSoup
 
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+billers = ['Ibanking.KE@sc.com',
+           'receipts-kenya@bolt.eu', 'alerts.kenya@sc.com']
+query = "newer_than:30d"
 
 
 def main():
@@ -22,7 +28,7 @@ def main():
     try:
         # Call the Gmail API
         service = build('gmail', 'v1', credentials=creds)
-        messages_list = service.users().messages().list(userId='me', labelIds=None, q=None,
+        messages_list = service.users().messages().list(userId='me', labelIds=None, q=query,
                                                         pageToken=None, maxResults=None, includeSpamTrash=None).execute().get('messages')
         for msg in messages_list:
             txt = service.users().messages().get(userId='me', id=msg['id'],
@@ -30,13 +36,18 @@ def main():
             payload = txt['payload']
             headers = payload['headers']
             sender = extract_sender(headers)
-            if re.search("^Domo", sender):
-                parts = payload.get('parts')
-                if parts is not None:
+            marker1 = sender.find('<') + 1
+            marker2 = sender.find('>')
+            sender = sender[marker1:marker2]
+            if sender in billers:
+                if payload['mimeType'] == 'text/html':
+                    decode_base64_data(payload['body']['data'])
+                elif payload['mimeType'] == 'multipart/mixed':
+                    parts = payload.get('parts')
                     parts = parts[0]
-                    data = parts['body']['data']
-                    decoded_data = decode_base64_data(data)
-                    print(type(decoded_data))
+                    parts = parts['body']
+                    if 'data' in parts.keys():
+                        print(decode_base64_data(parts['data']))
 
     except HttpError as error:
         handle_api_error(error)
@@ -79,9 +90,11 @@ def extract_sender(headers):
 
 
 def decode_base64_data(data):
-    data = data.replace("-", "+").replace("_", "/")
-    decoded_data = base64.b64decode(data)
-    return data  # decoded_data
+    # decoded_data = base64.urlsafe_b64decode(data).decode('UTF8')
+    decoded_data = data.replace("-", "+").replace("_", "/")
+    decoded_data = base64.b64decode(decoded_data)
+    decoded_data = BeautifulSoup(decoded_data, "lxml")
+    return decoded_data
 
 
 def handle_api_error(error):
