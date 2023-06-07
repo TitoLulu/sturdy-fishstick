@@ -19,7 +19,7 @@ billers = ['Ibanking.KE@sc.com',
            'receipts-kenya@bolt.eu', 'alerts.kenya@sc.com']
 query = "newer_than:30d"
 search_words = ["Amount", "Transfer Amount"]
-types_of_transactions = ["Transfer", "Debit", "Credit"]
+types_of_transactions = ["Transfer", "Debit", "Credit", "Amount"]
 
 
 def main():
@@ -45,16 +45,35 @@ def main():
             if sender in billers:
                 if payload['mimeType'] == 'text/html':
                     message = decode_base64_data(payload['body']['data'])
+                    message = re.sub(r'\s+', ' ', message.strip())
+                    if re.search(r"Total: Ksh (\d+)", message):
+                        amount = re.search(
+                            r"Total: Ksh (\d+)", message)
+                        print(amount.group(1))
                 elif payload['mimeType'] == 'multipart/mixed':
                     parts = payload.get('parts')
                     parts = parts[0]
                     parts = parts['body']
                     if 'data' in parts.keys():
                         message = decode_base64_data(parts['data'])
-                        transfer_amount = re.search(
-                            r"Transfer Amount : (KES [\d,]+\.\d{2})", message)
-                        if transfer_amount:
+                        if re.search("Transfer Amount : (KES [\d,]+\.\d{2})", message):
+                            transfer_amount = re.search(
+                                r"Transfer Amount : (KES [\d,]+\.\d{2})", message)
                             print("Transfer Amount:", transfer_amount.group(1))
+                        elif re.search(r'Amount: (\d+\.\d+) KES', message):
+                            amount = re.search(
+                                r'Amount: (\d+\.\d+) KES', message)
+                            transction_charge = re.search(
+                                r'Transaction Charges: (\d+\.\d+) KES', message)
+                            excise_duty = re.search(
+                                r'Excise Duty: (\d+\.\d+) KES', message)
+                            biller = re.search(
+                                r'Biller: (.+)', message)
+                            print("Amount :", amount.group(1))
+                            print("Transaction Charge :",
+                                  transction_charge.group(1))
+                            print("excise_duty :", excise_duty.group(1))
+                            print("biller :", biller.group(1))
                         else:
                             print("Transfer Amount not found.")
 
