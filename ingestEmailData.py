@@ -3,6 +3,7 @@ import os.path
 import re
 import base64
 import email
+import html2text
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -17,6 +18,7 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 billers = ['Ibanking.KE@sc.com',
            'receipts-kenya@bolt.eu', 'alerts.kenya@sc.com']
 query = "newer_than:30d"
+search_words = ["Amount", "Transfer Amount"]
 
 
 def main():
@@ -41,13 +43,21 @@ def main():
             sender = sender[marker1:marker2]
             if sender in billers:
                 if payload['mimeType'] == 'text/html':
-                    decode_base64_data(payload['body']['data'])
+                    message = decode_base64_data(payload['body']['data'])
                 elif payload['mimeType'] == 'multipart/mixed':
                     parts = payload.get('parts')
                     parts = parts[0]
                     parts = parts['body']
                     if 'data' in parts.keys():
-                        print(decode_base64_data(parts['data']))
+                        message = decode_base64_data(parts['data'])
+                        # message = str(message).replace("<br/>", "")
+
+                        transfer_amount = re.search(
+                            r"Transfer Amount : (KES [\d,]+\.\d{2})", message)
+                        if transfer_amount:
+                            print("Transfer Amount:", transfer_amount.group(1))
+                        else:
+                            print("Transfer Amount not found.")
 
     except HttpError as error:
         handle_api_error(error)
@@ -91,10 +101,13 @@ def extract_sender(headers):
 
 def decode_base64_data(data):
     # decoded_data = base64.urlsafe_b64decode(data).decode('UTF8')
+
     decoded_data = data.replace("-", "+").replace("_", "/")
     decoded_data = base64.b64decode(decoded_data)
     decoded_data = BeautifulSoup(decoded_data, "lxml")
-    return decoded_data
+    soup = BeautifulSoup(str(decoded_data), "html.parser")
+    text = soup.get_text()
+    return text
 
 
 def handle_api_error(error):
