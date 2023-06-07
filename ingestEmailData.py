@@ -19,6 +19,7 @@ billers = ['Ibanking.KE@sc.com',
            'receipts-kenya@bolt.eu', 'alerts.kenya@sc.com']
 query = "newer_than:30d"
 search_words = ["Amount", "Transfer Amount"]
+types_of_transactions = ["Transfer", "Debit", "Credit"]
 
 
 def main():
@@ -50,8 +51,6 @@ def main():
                     parts = parts['body']
                     if 'data' in parts.keys():
                         message = decode_base64_data(parts['data'])
-                        # message = str(message).replace("<br/>", "")
-
                         transfer_amount = re.search(
                             r"Transfer Amount : (KES [\d,]+\.\d{2})", message)
                         if transfer_amount:
@@ -100,8 +99,6 @@ def extract_sender(headers):
 
 
 def decode_base64_data(data):
-    # decoded_data = base64.urlsafe_b64decode(data).decode('UTF8')
-
     decoded_data = data.replace("-", "+").replace("_", "/")
     decoded_data = base64.b64decode(decoded_data)
     decoded_data = BeautifulSoup(decoded_data, "lxml")
